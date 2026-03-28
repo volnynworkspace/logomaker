@@ -6,11 +6,11 @@ import { headers } from 'next/headers';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-10-29.clover',
-});
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error('STRIPE_SECRET_KEY is not defined');
+  return new Stripe(key, { apiVersion: '2025-10-29.clover' });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
     let event: Stripe.Event;
 
     try {
+      const stripe = getStripe();
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (err) {
       // Wrap error with proper Error object
