@@ -1,12 +1,10 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { checkHistory } from "../actions/actions";
 import { useEffect, useState } from "react";
 import { SelectLogo } from "@/db/schema";
 import LogoCard from "@/components/logo-card";
 import SkeletonCard from "@/components/skeleton-card";
-import { Download } from "lucide-react";
 import { downloadImage } from "../actions/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -14,7 +12,6 @@ import Link from "next/link";
 import {
   IconSparkles,
   IconPalette,
-  IconTrendingUp,
   IconRocket,
   IconCalendarMonth,
   IconClock,
@@ -37,7 +34,6 @@ export default function DashboardPage() {
     fetchLogos();
   }, []);
 
-  // Calculate analytics
   const totalDesigns = logos.length;
   const thisWeekDesigns = logos.filter(logo => {
     const logoDate = new Date(logo.createdAt);
@@ -83,87 +79,71 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Hero Section */}
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-          Welcome Back 👋
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          Welcome Back
         </h1>
-        <p className="text-sm sm:text-base text-muted-foreground">
+        <p className="text-muted-foreground mt-1">
           Manage your logo designs and create new ones
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="border border-border/50 bg-card hover:shadow-xl transition-all duration-300 hover:border-primary/20">
-          <CardContent className="p-3 sm:p-5">
-            <div className="flex items-center justify-between mb-2 sm:mb-3">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <IconPalette className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              </div>
-              <span className="text-xl sm:text-2xl font-bold bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
-                {totalDesigns}
-              </span>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-border/60 bg-card p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <IconPalette className="h-4.5 w-4.5 text-primary" />
             </div>
-            <h3 className="font-semibold text-xs sm:text-sm">Total Designs</h3>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-2xl font-bold text-foreground">{totalDesigns}</div>
+          <p className="text-sm text-muted-foreground mt-0.5">Total Designs</p>
+        </div>
 
-        <Card className="border border-border/50 bg-card hover:shadow-xl transition-all duration-300 hover:border-green-500/20">
-          <CardContent className="p-3 sm:p-5">
-            <div className="flex items-center justify-between mb-2 sm:mb-3">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <IconClock className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
-              </div>
-              <span className="text-xl sm:text-2xl font-bold bg-gradient-to-br from-green-600 to-green-700 bg-clip-text text-transparent">
-                {thisWeekDesigns}
-              </span>
+        <div className="rounded-xl border border-border/60 bg-card p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <IconClock className="h-4.5 w-4.5 text-emerald-600" />
             </div>
-            <h3 className="font-semibold text-xs sm:text-sm">This Week</h3>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-2xl font-bold text-foreground">{thisWeekDesigns}</div>
+          <p className="text-sm text-muted-foreground mt-0.5">This Week</p>
+        </div>
 
-        <Card className="border border-border/50 bg-card hover:shadow-xl transition-all duration-300 hover:border-blue-500/20">
-          <CardContent className="p-3 sm:p-5">
-            <div className="flex items-center justify-between mb-2 sm:mb-3">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <IconCalendarMonth className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-              </div>
-              <span className="text-xl sm:text-2xl font-bold bg-gradient-to-br from-blue-600 to-blue-700 bg-clip-text text-transparent">
-                {thisMonthDesigns}
-              </span>
+        <div className="rounded-xl border border-border/60 bg-card p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <IconCalendarMonth className="h-4.5 w-4.5 text-blue-600" />
             </div>
-            <h3 className="font-semibold text-xs sm:text-sm">This Month</h3>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-2xl font-bold text-foreground">{thisMonthDesigns}</div>
+          <p className="text-sm text-muted-foreground mt-0.5">This Month</p>
+        </div>
 
-        <Card className="border border-border/50 bg-card hover:shadow-xl transition-all duration-300 hover:border-primary/20 cursor-pointer group">
-          <Link href="/dashboard/generate">
-            <CardContent className="p-3 sm:p-5">
-              <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-primary to-primary/80 p-2 sm:p-3 mb-1 sm:mb-2 shadow-lg group-hover:shadow-xl transition-shadow">
-                  <IconRocket className="h-full w-full text-white" />
-                </div>
-                <h3 className="font-semibold text-xs sm:text-sm">Create New</h3>
-              </div>
-            </CardContent>
-          </Link>
-        </Card>
+        <Link href="/dashboard/generate" className="group">
+          <div className="rounded-xl border border-border/60 bg-card p-5 hover:shadow-md transition-all h-full flex flex-col items-center justify-center text-center gap-2 hover:border-primary/30">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
+              <IconRocket className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-sm font-semibold text-foreground">Create New</span>
+          </div>
+        </Link>
       </div>
 
       {/* Recent Designs */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base sm:text-lg font-bold">Recent Designs</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Recent Designs</h2>
           <Link href="/dashboard/my-designs">
-            <Button variant="ghost" size="sm" className="text-xs">
+            <Button variant="ghost" size="sm" className="text-sm text-muted-foreground hover:text-foreground">
               View All
             </Button>
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {isLoading ? (
             [...Array(6)].map((_, index) => <SkeletonCard key={index} />)
           ) : logos.length > 0 ? (
@@ -175,25 +155,22 @@ export default function DashboardPage() {
               />
             ))
           ) : (
-            <Card className="col-span-full border border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-8">
-                <IconSparkles className="h-8 w-8 text-muted-foreground mb-3" />
-                <h3 className="text-sm font-semibold mb-1">No designs yet</h3>
-                <p className="text-xs text-muted-foreground mb-3 text-center">
-                  Start creating amazing logos
-                </p>
-                <Link href="/dashboard/generate">
-                  <Button size="sm" className="gap-2">
-                    <IconSparkles className="h-3 w-3" />
-                    Create Logo
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            <div className="col-span-full rounded-xl border border-dashed border-border/60 py-12 flex flex-col items-center justify-center">
+              <IconSparkles className="h-8 w-8 text-muted-foreground/40 mb-3" />
+              <h3 className="text-sm font-semibold mb-1">No designs yet</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Start creating amazing logos
+              </p>
+              <Link href="/dashboard/generate">
+                <Button size="sm" className="gap-2 bg-foreground text-background hover:bg-foreground/90">
+                  <IconSparkles className="h-3.5 w-3.5" />
+                  Create Logo
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       </div>
     </div>
   );
 }
-

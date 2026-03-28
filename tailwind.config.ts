@@ -16,7 +16,11 @@ export default {
   	extend: {
   		fontFamily: {
   			primary: [
-  				'var(--font-manrope)',
+  				'var(--font-inter)',
+  				'-apple-system',
+  				'BlinkMacSystemFont',
+  				'Segoe UI',
+  				'Roboto',
   				'sans-serif'
   			]
   		},

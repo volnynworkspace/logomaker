@@ -1,14 +1,14 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
 import { checkHistory, downloadImage } from "../../actions/actions";
 import { useEffect, useState } from "react";
 import { SelectLogo } from "@/db/schema";
 import { useToast } from "@/hooks/use-toast";
 import LogoCard from "@/components/logo-card";
 import SkeletonCard from "@/components/skeleton-card";
+import { IconSparkles } from "@tabler/icons-react";
+import Link from "next/link";
 
 export default function MyDesignsPage() {
   const { toast } = useToast();
@@ -69,24 +69,24 @@ export default function MyDesignsPage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Hero Section */}
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           My Designs
         </h1>
-        <p className="text-sm sm:text-base text-muted-foreground">
+        <p className="text-muted-foreground mt-1">
           View and manage all your created logos
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {isLoading ? (
           [...Array(12)].map((_, index) => <SkeletonCard key={index} />)
         ) : error ? (
-          <div className="col-span-full text-center py-12">
-            <p className="text-lg font-semibold mb-2 text-destructive">Something went wrong</p>
-            <p className="text-muted-foreground mb-4">{error}</p>
+          <div className="col-span-full text-center py-16">
+            <p className="text-base font-semibold mb-2 text-destructive">Something went wrong</p>
+            <p className="text-sm text-muted-foreground">{error}</p>
           </div>
         ) : logos.length > 0 ? (
           logos.map((logo) => (
@@ -97,15 +97,21 @@ export default function MyDesignsPage() {
             />
           ))
         ) : (
-          <div className="col-span-full text-center py-12">
-            <p className="text-lg font-semibold mb-2">No designs yet</p>
-            <p className="text-muted-foreground mb-4">
+          <div className="col-span-full rounded-xl border border-dashed border-border/60 py-16 flex flex-col items-center justify-center">
+            <IconSparkles className="h-8 w-8 text-muted-foreground/40 mb-3" />
+            <h3 className="text-sm font-semibold mb-1">No designs yet</h3>
+            <p className="text-sm text-muted-foreground mb-4">
               Start creating amazing logos
             </p>
+            <Link href="/dashboard/generate">
+              <Button size="sm" className="gap-2 bg-foreground text-background hover:bg-foreground/90">
+                <IconSparkles className="h-3.5 w-3.5" />
+                Create Logo
+              </Button>
+            </Link>
           </div>
         )}
       </div>
     </div>
   );
 }
-

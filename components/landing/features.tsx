@@ -1,73 +1,76 @@
+"use client";
+
 import React from "react";
 import { features } from "@/constants/data";
-import ScrollStack, { ScrollStackItem } from "../ui/ScrollStack";
+import { motion } from "framer-motion";
+import Link from "next/link";
 
 export default function Features() {
   return (
-    <>
-      <div id="features" className="bg-background py-10 mt-20">
-        <div className="flex flex-col max-w-6xl mx-auto px-4 mb-2">
-          <div className="text-5xl md:text-7xl font-bold text-center mb-4">
-            Why Choose
-            <br />
-            <span className="bg-gradient-to-r from-primary via-purple-500 to-primary bg-clip-text text-transparent">
-              LogoAIpro?
-            </span>
+    <section id="features" className="py-24 sm:py-32">
+      <div className="max-w-6xl mx-auto px-4">
+        {/* Header */}
+        <div className="flex items-end justify-between mb-12">
+          <div>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground tracking-tight">
+              Discover templates
+            </h2>
+            <p className="mt-3 text-lg text-muted-foreground">
+              Start your next project with a template
+            </p>
           </div>
-          <p className="text-lg md:text-xl text-center text-muted-foreground max-w-2xl mx-auto">
-            Experience the future of logo design with AI-powered creativity
-          </p>
+          <Link
+            href="/example"
+            className="hidden sm:inline-flex text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            View all
+          </Link>
         </div>
 
-        <div className="max-w-6xl mx-auto">
-          <ScrollStack
-            useWindowScroll={true}
-            itemDistance={150}
-            itemScale={0.03}
-            itemStackDistance={40}
-            stackPosition="20%"
-            scaleEndPosition="10%"
-            baseScale={0.85}
-            rotationAmount={2}
-            blurAmount={3}
-          >
-            {features.map((feature, index) => (
-              <ScrollStackItem
-                key={index}
-                itemClassName="bg-background border border-border/60 rounded-3xl overflow-hidden relative group hover:border-accent transition-all"
-              >
-                <div className="h-full relative flex flex-col md:flex-row items-center p-8 md:p-12 gap-8">
-                  {/* Left Side - Content */}
-                  <div className="flex-1 z-20">
-                    <div className="text-sm md:text-base font-semibold text-primary mb-2 uppercase tracking-wider">
-                      {feature.smallHeading}
-                    </div>
-                    <h3 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
-                      {feature.title}
-                    </h3>
-                    <p className="text-base md:text-lg text-gray-600 leading-relaxed">
-                      {feature.description}
-                    </p>
-                  </div>
+        {/* Card Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {features.map((feature, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: index * 0.08 }}
+              className="group cursor-pointer"
+            >
+              {/* Card Image */}
+              <div className="aspect-[4/3] rounded-xl overflow-hidden bg-muted mb-3 border border-border/60">
+                <img
+                  src={feature.imageUrl}
+                  alt={feature.title}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+              {/* Card Text */}
+              <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                {feature.title}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
+                {feature.smallHeading}
+              </p>
+            </motion.div>
+          ))}
+        </div>
 
-                  {/* Right Side - Image */}
-                  <div className="flex-shrink-0 w-full md:w-80 h-64 md:h-80 rounded-2xl overflow-hidden relative z-20">
-                    <img
-                      src={feature.imageUrl}
-                      alt={feature.title}
-                      className="w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-110"
-                      onError={(e) => {
-                        // Fallback if image doesn't exist
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                </div>
-              </ScrollStackItem>
-            ))}
-          </ScrollStack>
+        {/* Mobile "View all" */}
+        <div className="sm:hidden mt-6 text-center">
+          <Link
+            href="/example"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            View all
+          </Link>
         </div>
       </div>
-    </>
+    </section>
   );
 }

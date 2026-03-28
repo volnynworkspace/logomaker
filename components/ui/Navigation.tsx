@@ -12,8 +12,10 @@ const Navigation = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="text-xl font-semibold">
-          LogoAIpro
+        <Link href="/" className="text-xl flex items-center gap-1.5">
+          <span className="font-medium text-muted-foreground">Volnyn</span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="font-bold text-foreground">LogoAI<span className="text-primary">pro</span></span>
         </Link>
 
         <div className="hidden md:flex items-center space-x-8">
@@ -24,10 +26,10 @@ const Navigation = () => {
             Generate
           </Link>
           <Link
-            href="/example"
+            href="/dashboard/my-designs"
             className="text-gray-500 hover:text-primary transition-colors"
           >
-            Example
+            My Designs
           </Link>
           <Link
             href="/pricing"
