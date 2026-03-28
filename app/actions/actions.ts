@@ -5,6 +5,9 @@ import { z } from 'zod';
 import dedent from 'dedent';
 import { clerkClient, currentUser } from "@clerk/nextjs/server";
 import { ensureDbConnected, Logo } from '@/db';
+import { saveImageLocally } from '@/lib/save-image';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import Stripe from 'stripe';
 
 function getAIClient(): OpenAI {
@@ -519,7 +522,7 @@ export async function generateLogo(formData: z.infer<typeof FormSchema>) {
       throw new Error(result.error || 'Blueprint pipeline failed');
     }
 
-    const imageUrl = result.url;
+    const imageUrl = await saveImageLocally(result.url);
 
     const DatabaseData = {
       image_url: imageUrl,
@@ -692,12 +695,27 @@ export async function generate8Logos(formData: z.infer<typeof FormSchema>) {
 
     const logos = [...nebiusLogos, ...geminiLogos];
 
-    // Save successful logos to MongoDB
+    // Save successful logos locally and update URLs
+    const localLogos = await Promise.all(
+      logos.map(async (l) => {
+        if (l.success && l.url) {
+          try {
+            const localPath = await saveImageLocally(l.url);
+            return { ...l, url: localPath };
+          } catch {
+            return { ...l, success: false };
+          }
+        }
+        return l;
+      })
+    );
+
+    // Save to MongoDB with local paths
     try {
       await ensureDbConnected();
       await Promise.allSettled(
-        logos
-          .filter((l) => l.success && l.url && !l.url.startsWith('data:'))
+        localLogos
+          .filter((l) => l.success && l.url)
           .map((l) =>
             Logo.create({
               image_url: l.url,
@@ -712,7 +730,7 @@ export async function generate8Logos(formData: z.infer<typeof FormSchema>) {
       // DB errors don't block the response
     }
 
-    return { success: true, logos };
+    return { success: true, logos: localLogos };
   } catch (error) {
     return {
       success: false,
@@ -778,15 +796,24 @@ export async function downloadImage(url: string) {
   'use server';
 
   try {
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch image');
-    }
+    let base64Image: string;
+    let contentType: string | null = 'image/png';
 
-    const contentType = response.headers.get('content-type');
-    const buffer = await response.arrayBuffer();
-    const base64Image = Buffer.from(buffer).toString('base64');
+    if (url.startsWith('/')) {
+      // Local file path — read from public directory
+      const filePath = join(process.cwd(), 'public', url);
+      const buffer = await readFile(filePath);
+      base64Image = buffer.toString('base64');
+    } else {
+      // Remote URL — fetch
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch image');
+      }
+      contentType = response.headers.get('content-type');
+      const buffer = await response.arrayBuffer();
+      base64Image = Buffer.from(buffer).toString('base64');
+    }
 
     return {
       success: true,
@@ -983,9 +1010,11 @@ export async function saveEditedLogo({
     const user = await currentUser();
     if (!user) return { success: false, error: 'User not authenticated' };
 
+    const localPath = await saveImageLocally(imageDataUrl);
+
     await ensureDbConnected();
     await Logo.create({
-      image_url: imageDataUrl,
+      image_url: localPath,
       primary_color: primaryColor,
       background_color: backgroundColor,
       username: user.username ?? user.firstName ?? 'Anonymous',
@@ -1025,7 +1054,8 @@ export async function reEditWithAI(formData: z.infer<typeof FormSchema>) {
       return { success: false, error: result.error || 'No image returned from AI' };
     }
 
-    return { success: true, url: result.url, blueprint: result.blueprint };
+    const localUrl = await saveImageLocally(result.url);
+    return { success: true, url: localUrl, blueprint: result.blueprint };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Failed to regenerate logo' };
   }

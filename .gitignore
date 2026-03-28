@@ -49,3 +49,6 @@ next-env.d.ts
 
 # macOS zip artifacts
 __MACOSX/
+
+# generated logos (stored locally)
+/public/logos/
