@@ -166,7 +166,7 @@ function ToolBtn({
       title={label}
       className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
         active
-          ? "bg-primary text-primary-foreground shadow-md"
+          ? "bg-foreground text-background shadow-md"
           : "hover:bg-accent text-muted-foreground hover:text-foreground"
       } ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
     >
@@ -1828,7 +1828,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
             <span className="text-muted-foreground text-sm hidden sm:inline">— {data.companyName}</span>
           )}
         </div>
-        <Button onClick={handleSave} disabled={isSaving} size="sm" className="gap-1">
+        <Button onClick={handleSave} disabled={isSaving} size="sm" className="gap-1 bg-foreground text-background hover:bg-foreground/90">
           {isSaving ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
@@ -1930,7 +1930,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                 className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 z-10 rounded-lg gap-3"
                 style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}
               >
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <Loader2 className="w-8 h-8 animate-spin text-foreground" />
                 <span className="text-sm text-muted-foreground">Loading image…</span>
               </div>
             )}
@@ -1945,7 +1945,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
           {isSegmenting && componentLayers.length === 0 && (
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground" />
                 <span>Preparing editable components...</span>
               </div>
               <p className="text-[10px] text-muted-foreground/60 mt-1 ml-5">
@@ -1962,7 +1962,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                 onClick={() => setShowBreakdown((p) => !p)}
               >
                 <span className="flex items-center gap-1.5">
-                  <Wand2 className="w-3.5 h-3.5 text-primary" />
+                  <Wand2 className="w-3.5 h-3.5 text-foreground" />
                   AI Breakdown
                 </span>
                 {showBreakdown ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1996,9 +1996,9 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                         setSelectedObj(layer.fabricObj);
                         setSelectedObjType(layer.fabricObj.type ?? "");
                       }}
-                      className={`w-full flex items-center gap-2 p-1.5 rounded-lg border transition-all hover:border-primary/60 hover:bg-primary/5 ${
+                      className={`w-full flex items-center gap-2 p-1.5 rounded-lg border transition-all hover:border-foreground/40 hover:bg-foreground/5 ${
                         selectedObj === layer.fabricObj
-                          ? "border-primary bg-primary/10"
+                          ? "border-foreground bg-foreground/10"
                           : "border-border bg-background"
                       }`}
                     >
@@ -2120,7 +2120,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                           setObjOpacity(v);
                           updateSelectedProp("opacity", v / 100);
                         }}
-                        className="w-full accent-primary"
+                        className="w-full accent-foreground"
                       />
                     </div>
 
@@ -2174,7 +2174,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                               }
                               updateSelectedProp("fontFamily", font);
                             }}
-                            className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-foreground/30"
                             style={{ fontFamily }}
                           >
                             {(() => {
@@ -2322,7 +2322,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                               setStrokeWidth(v);
                               updateSelectedProp("strokeWidth", v);
                             }}
-                            className="w-full accent-primary"
+                            className="w-full accent-foreground"
                           />
                         </div>
 
@@ -2397,7 +2397,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                               setImgBrightness(v);
                               applyImageFilter("Brightness", v);
                             }}
-                            className="w-full accent-primary"
+                            className="w-full accent-foreground"
                           />
                         </div>
 
@@ -2414,7 +2414,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                               setImgContrast(v);
                               applyImageFilter("Contrast", v);
                             }}
-                            className="w-full accent-primary"
+                            className="w-full accent-foreground"
                           />
                         </div>
 
@@ -2431,7 +2431,7 @@ export default function ImageEditor({ data, processedComponents, isSegmenting }:
                               setImgSaturation(v);
                               applyImageFilter("Saturation", v);
                             }}
-                            className="w-full accent-primary"
+                            className="w-full accent-foreground"
                           />
                         </div>
 

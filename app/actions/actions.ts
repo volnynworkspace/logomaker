@@ -714,7 +714,11 @@ export async function generate8Logos(formData: z.infer<typeof FormSchema>) {
     try {
       await ensureDbConnected();
       await Promise.allSettled(
+<<<<<<< HEAD
         localLogos
+=======
+        logos
+>>>>>>> 0972f272f701308be678f7cfcd2c73cb8083d5e1
           .filter((l) => l.success && l.url)
           .map((l) =>
             Logo.create({

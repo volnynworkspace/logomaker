@@ -725,7 +725,7 @@ export default function Home() {
                   transition={{ duration: 0.4 }}
                 >
                     {/* Background Gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-primary/10 to-orange-500/5"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-primary/10 to-violet-500/5"></div>
                     
                     {/* Animated Border */}
                     <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-primary/20"></div>
@@ -734,8 +734,8 @@ export default function Home() {
                     <div className="relative z-10 max-w-md space-y-6">
                       {/* Icon with animated background */}
                       <div className="relative mx-auto w-32 h-32 flex items-center justify-center">
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-orange-500/20 rounded-full blur-2xl animate-pulse"></div>
-                        <div className="relative bg-gradient-to-br from-primary/10 to-orange-500/10 rounded-full p-6 backdrop-blur-sm">
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-violet-500/20 rounded-full blur-2xl animate-pulse"></div>
+                        <div className="relative bg-gradient-to-br from-primary/10 to-violet-500/10 rounded-full p-6 backdrop-blur-sm">
                           <Sparkles className="h-16 w-16 text-primary" />
                         </div>
                       </div>

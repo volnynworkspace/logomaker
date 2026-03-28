@@ -23,7 +23,6 @@ export default function DashboardLayout({
   }, [isLoaded, isSignedIn, router]);
 
   useEffect(() => {
-    // Prevent body scroll when sidebar is open on mobile
     if (sidebarOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -36,10 +35,10 @@ export default function DashboardLayout({
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-slate-600">Loading...</p>
+          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -52,17 +51,14 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-background">
       <DashboardSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 lg:ml-72 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 lg:ml-64 flex flex-col h-screen overflow-hidden">
         <DashboardTopbar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-2 sm:p-4">
-          <div className="border border-border/50 rounded-xl sm:rounded-2xl bg-card shadow-xl overflow-hidden">
-            <div className="p-3 sm:p-4">
-              {children}
-            </div>
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {children}
           </div>
         </main>
       </div>
     </div>
   );
 }
-

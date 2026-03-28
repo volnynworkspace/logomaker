@@ -11,6 +11,7 @@ import {
   IconCreditCard,
   IconX,
 } from "@tabler/icons-react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -64,42 +65,41 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
     <>
       {/* Mobile Overlay */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+        <div
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-sm"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed left-0 top-0 z-50 h-screen w-72 p-4 transition-transform duration-300 lg:translate-x-0",
+        "fixed left-0 top-0 z-50 h-screen w-64 bg-background border-r border-border/50 transition-transform duration-300 lg:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="h-full border border-border/50 rounded-2xl bg-card shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col p-4">
+        <div className="h-full flex flex-col px-4 py-5">
           {/* Close button for mobile */}
           <button
             onClick={onClose}
-            className="lg:hidden absolute top-6 right-6 p-2 rounded-lg hover:bg-accent transition-colors"
+            className="lg:hidden absolute top-5 right-4 p-1.5 rounded-lg hover:bg-accent transition-colors"
             aria-label="Close menu"
           >
-            <IconX className="h-5 w-5" />
+            <IconX className="h-5 w-5 text-muted-foreground" />
           </button>
 
-          {/* Logo Section */}
-          <div className="mb-6">
-            <Link href="/" className="flex items-center gap-3 px-3 py-2.5 group" onClick={() => handleNavClick("/")}>
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/20 blur-xl group-hover:bg-primary/30 transition-colors rounded-xl" />
-                <div className="relative bg-gradient-to-br from-primary to-primary/80 text-primary-foreground w-9 h-9 rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">
-                  L
-                </div>
-              </div>
-              <span className="text-xl font-bold">LogoAIpro</span>
-            </Link>
-          </div>
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5 px-2 mb-8" onClick={() => handleNavClick("/")}>
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-lg tracking-tight flex items-center gap-1.5">
+              <span className="font-medium text-muted-foreground">Volnyn</span>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="font-bold text-foreground">LogoAI<span className="text-primary">pro</span></span>
+            </span>
+          </Link>
 
-          {/* Navigation Items */}
-          <nav className="flex-1 space-y-1.5">
+          {/* Navigation */}
+          <nav className="flex-1 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -109,51 +109,46 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
                   href={item.href}
                   onClick={() => handleNavClick(item.href)}
                   className={cn(
-                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                     isActive
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
                   )}
                 >
-                  <Icon className={cn(
-                    "h-5 w-5 transition-transform",
-                    isActive ? "scale-105" : "group-hover:scale-105"
-                  )} />
+                  <Icon className="h-[18px] w-[18px]" />
                   <span>{item.title}</span>
                 </Link>
               );
             })}
           </nav>
 
-          {/* Bottom Section */}
-          <div className="space-y-1.5">
+          {/* Bottom */}
+          <div className="space-y-2 pt-4 border-t border-border/50">
             <Link
               href="/"
               onClick={() => handleNavClick("/")}
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground transition-colors"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             >
-              <IconHome className="h-5 w-5" />
+              <IconHome className="h-[18px] w-[18px]" />
               <span>Back to Home</span>
             </Link>
-            
+
             <SignedIn>
-              <div className="px-3 py-3 rounded-xl border border-border/50 bg-muted/20">
-                <div className="flex items-center gap-3">
-                  <UserButton 
-                    appearance={{
-                      elements: {
-                        avatarBox: "w-10 h-10",
-                      }
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">
-                      {user?.firstName || user?.username || "User"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {user?.primaryEmailAddress?.emailAddress || "No email"}
-                    </p>
-                  </div>
+              <div className="flex items-center gap-3 px-3 py-3">
+                <UserButton
+                  appearance={{
+                    elements: {
+                      avatarBox: "w-8 h-8",
+                    }
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {user?.firstName || user?.username || "User"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user?.primaryEmailAddress?.emailAddress || ""}
+                  </p>
                 </div>
               </div>
             </SignedIn>
@@ -163,4 +158,3 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
     </>
   );
 }
-

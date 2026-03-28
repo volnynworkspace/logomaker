@@ -269,7 +269,7 @@ const PillNav: React.FC<PillNavProps> = ({
             {logo ? (
               <img src={logo} alt={logoAlt} ref={logoImgRef} />
             ) : (
-              <span className="pill-logo-text">{logoText || 'LogoAIpro'}</span>
+              <span className="pill-logo-text">{logoText || 'Volnyn · LogoAIpro'}</span>
             )}
           </a>
         ) : (
@@ -285,7 +285,7 @@ const PillNav: React.FC<PillNavProps> = ({
             {logo ? (
               <img src={logo} alt={logoAlt} ref={logoImgRef} />
             ) : (
-              <span className="pill-logo-text">{logoText || 'LogoAIpro'}</span>
+              <span className="pill-logo-text">{logoText || 'Volnyn · LogoAIpro'}</span>
             )}
           </Link>
         ))}
