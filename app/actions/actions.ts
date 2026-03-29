@@ -740,6 +740,130 @@ export async function generate8Logos(formData: z.infer<typeof FormSchema>) {
   }
 }
 
+export async function generate8LogosForVolnyn(
+  formData: z.infer<typeof FormSchema>,
+  volnynUserId: string,
+  timestamp: string,
+  signature: string,
+  callbackUrl: string
+) {
+  'use server';
+  try {
+    // Verify HMAC signature server-side
+    const { createHmac } = await import('crypto');
+    const secret = process.env.LOGOAI_SHARED_SECRET;
+    if (!secret) {
+      return { success: false, error: 'Server misconfigured', logos: [] };
+    }
+
+    const expectedSignature = createHmac('sha256', secret)
+      .update(`${volnynUserId}|${timestamp}|${callbackUrl}`)
+      .digest('hex');
+
+    if (expectedSignature !== signature) {
+      return { success: false, error: 'Invalid signature', logos: [] };
+    }
+
+    // Check token expiry (30 minutes)
+    if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 1800) {
+      return { success: false, error: 'Token expired', logos: [] };
+    }
+
+    // Skip Clerk auth and credit checks — proceed directly with generation
+    const validatedData = FormSchema.parse(formData);
+    const nebiusClient = getAIClient();
+    const primaryColorName = validatedData.primaryColor ? hexToColorName(validatedData.primaryColor) : 'blue';
+    const secondaryColorName = validatedData.secondaryColor ? hexToColorName(validatedData.secondaryColor) : 'white';
+    const userStyleDesc = styleLookup[validatedData.style] || '';
+
+    const colorInstruction = `STRICT COLOR REQUIREMENTS: The logo MUST use exactly ${primaryColorName} (${validatedData.primaryColor}) as the primary/foreground color and ${secondaryColorName} (${validatedData.secondaryColor}) as the background color. Do NOT use any other colors — only these two colors are allowed.`;
+    const styleInstruction = userStyleDesc ? ` Design style: ${userStyleDesc}` : '';
+    const contextInstruction = validatedData.additionalInfo ? ` Brand context: ${validatedData.additionalInfo}` : '';
+
+    const nebiusPromise = Promise.allSettled(
+      NEBIUS_VARIATIONS.map(async (variation, i) => {
+        if (i > 0) await new Promise(r => setTimeout(r, i * 500));
+        const prompt = `Design a professional brand logo for "${validatedData.companyName}". ${colorInstruction}${styleInstruction} The logo features a single bold icon/symbol ABOVE the company name "${validatedData.companyName}" in clean typography. Simple flat design, no gradients, no 3D effects. Easy to edit. ${variation.suffix}${contextInstruction}`;
+        const response = await nebiusClient.images.generate({
+          model: validatedData.model,
+          prompt,
+          response_format: 'url',
+          size: validatedData.size,
+          n: 1,
+        });
+        return { url: response.data?.[0]?.url || '', style: variation.name };
+      })
+    );
+
+    const geminiPromise = Promise.allSettled(
+      GEMINI_VARIATIONS.map(async (variation, i) => {
+        if (i > 0) await new Promise(r => setTimeout(r, i * 600));
+        const prompt = `Generate an image of a professional brand logo for "${validatedData.companyName}". ${colorInstruction}${styleInstruction} The logo features a single bold icon/symbol ABOVE the company name "${validatedData.companyName}" in clean typography. Simple flat design, no gradients, no 3D effects. Easy to edit. ${variation.suffix}${contextInstruction}`;
+        const url = await generateLogoWithGemini(prompt);
+        return { url, style: variation.name };
+      })
+    );
+
+    const [nebiusResults, geminiResults] = await Promise.all([nebiusPromise, geminiPromise]);
+
+    const nebiusLogos = nebiusResults.map((result, i) => ({
+      url: result.status === 'fulfilled' ? result.value.url : '',
+      style: NEBIUS_VARIATIONS[i].name,
+      success: result.status === 'fulfilled' && !!result.value.url,
+    }));
+
+    const geminiLogos = geminiResults.map((result, i) => ({
+      url: result.status === 'fulfilled' ? result.value.url : '',
+      style: GEMINI_VARIATIONS[i].name,
+      success: result.status === 'fulfilled' && !!result.value.url,
+    }));
+
+    const logos = [...nebiusLogos, ...geminiLogos];
+
+    const localLogos = await Promise.all(
+      logos.map(async (l) => {
+        if (l.success && l.url) {
+          try {
+            const localPath = await saveImageLocally(l.url);
+            return { ...l, url: localPath };
+          } catch {
+            return { ...l, success: false };
+          }
+        }
+        return l;
+      })
+    );
+
+    // Save to MongoDB with volnyn user reference
+    try {
+      await ensureDbConnected();
+      await Promise.allSettled(
+        localLogos
+          .filter((l) => l.success && l.url)
+          .map((l) =>
+            Logo.create({
+              image_url: l.url,
+              primary_color: validatedData.primaryColor,
+              background_color: validatedData.secondaryColor,
+              username: `volnyn_user_${volnynUserId}`,
+              userId: `volnyn_${volnynUserId}`,
+            })
+          )
+      );
+    } catch (_) {
+      // DB errors don't block the response
+    }
+
+    return { success: true, logos: localLogos };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate logos',
+      logos: [],
+    };
+  }
+}
+
 export async function checkHistory() {
   const user = await currentUser();
 

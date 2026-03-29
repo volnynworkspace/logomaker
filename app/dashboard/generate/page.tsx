@@ -19,9 +19,11 @@ import {
   Building2,
   Paintbrush,
   Shapes,
+  ExternalLink,
 } from "lucide-react";
-import { generate8Logos, downloadImage } from "../../actions/actions";
+import { generate8Logos, generate8LogosForVolnyn, downloadImage } from "../../actions/actions";
 import { useRef } from "react";
+import { useVolnynSession } from "@/lib/volnyn-context";
 import {
   Select,
   SelectContent,
@@ -76,8 +78,10 @@ export default function GeneratePage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showResults, setShowResults] = useState(false);
+  const [isSendingToVolnyn, setIsSendingToVolnyn] = useState(false);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
+  const volnynSession = useVolnynSession();
 
   // Pre-fill from hero input prompt query param
   useEffect(() => {
@@ -169,7 +173,7 @@ export default function GeneratePage() {
     startProgressAnimation();
 
     try {
-      const result = await generate8Logos({
+      const formData = {
         companyName,
         style: selectedStyle,
         symbolPreference: "modern and professional",
@@ -179,12 +183,24 @@ export default function GeneratePage() {
         size: selectedSize,
         quality: selectedQuality,
         additionalInfo,
-      });
+      } as const;
+
+      const result = volnynSession.isVolnynSession
+        ? await generate8LogosForVolnyn(
+            formData,
+            volnynSession.volnynUserId,
+            volnynSession.timestamp,
+            volnynSession.signature,
+            volnynSession.callbackUrl
+          )
+        : await generate8Logos(formData);
 
       if (result.success && result.logos.length > 0) {
         setGeneratedLogos(result.logos);
         stopProgressAnimation(true);
-        window.dispatchEvent(new CustomEvent("refreshCredits"));
+        if (!volnynSession.isVolnynSession) {
+          window.dispatchEvent(new CustomEvent("refreshCredits"));
+        }
       } else {
         throw new Error(result.error || "Failed to generate logos");
       }
@@ -250,6 +266,42 @@ export default function GeneratePage() {
       setIsDownloading(false);
     }
   }, [selectedLogoIndex, generatedLogos, companyName, toast]);
+
+  const handleSendToVolnyn = useCallback(async () => {
+    const logo = selectedLogoIndex !== null ? generatedLogos[selectedLogoIndex] : null;
+    if (!logo?.url || !volnynSession.isVolnynSession) return;
+    setIsSendingToVolnyn(true);
+    try {
+      const response = await fetch("/api/volnyn-webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          logoUrl: logo.url,
+          volnynUserId: volnynSession.volnynUserId,
+          timestamp: volnynSession.timestamp,
+          callbackUrl: volnynSession.callbackUrl,
+          signature: volnynSession.signature,
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.redirect_url) {
+        toast({ title: "Logo sent!", description: "Redirecting back to your website..." });
+        setTimeout(() => {
+          window.location.href = data.redirect_url;
+        }, 1000);
+      } else {
+        throw new Error(data.message || "Failed to send logo");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send logo",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingToVolnyn(false);
+    }
+  }, [selectedLogoIndex, generatedLogos, volnynSession, toast]);
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -570,40 +622,68 @@ export default function GeneratePage() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                onClick={handleEditLogo}
-                disabled={selectedLogoIndex === null}
-                size="lg"
-                className="flex-1 gap-2 bg-foreground text-background hover:bg-foreground/90"
-              >
-                <Pencil className="w-4 h-4" />
-                Edit in Studio
-              </Button>
-              <Button
-                onClick={handleDownload}
-                disabled={selectedLogoIndex === null || isDownloading}
-                variant="outline"
-                size="lg"
-                className="flex-1 gap-2"
-              >
-                <Download className="w-4 h-4" />
-                {isDownloading ? "Downloading..." : "Download"}
-              </Button>
-              <Button
-                onClick={handleGenerate}
-                disabled={loading || !isFormValid}
-                variant="outline"
-                size="lg"
-                className="flex-1 gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                Regenerate
-              </Button>
+              {volnynSession.isVolnynSession ? (
+                <>
+                  <Button
+                    onClick={handleSendToVolnyn}
+                    disabled={selectedLogoIndex === null || isSendingToVolnyn}
+                    size="lg"
+                    className="flex-1 gap-2 bg-foreground text-background hover:bg-foreground/90"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    {isSendingToVolnyn ? "Sending..." : "Use This Logo"}
+                  </Button>
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={loading || !isFormValid}
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 gap-2"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                    Regenerate
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleEditLogo}
+                    disabled={selectedLogoIndex === null}
+                    size="lg"
+                    className="flex-1 gap-2 bg-foreground text-background hover:bg-foreground/90"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit in Studio
+                  </Button>
+                  <Button
+                    onClick={handleDownload}
+                    disabled={selectedLogoIndex === null || isDownloading}
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    {isDownloading ? "Downloading..." : "Download"}
+                  </Button>
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={loading || !isFormValid}
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 gap-2"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                    Regenerate
+                  </Button>
+                </>
+              )}
             </div>
 
             {selectedLogoIndex === null && (
               <p className="text-center text-xs text-muted-foreground">
-                Select a logo above to enable Edit and Download
+                {volnynSession.isVolnynSession
+                  ? "Select a logo above to use it on your website"
+                  : "Select a logo above to enable Edit and Download"}
               </p>
             )}
           </motion.div>
