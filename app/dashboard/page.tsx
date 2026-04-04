@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { SelectLogo } from "@/db/schema";
 import LogoCard from "@/components/logo-card";
 import SkeletonCard from "@/components/skeleton-card";
-import { downloadImage } from "../actions/actions";
+import { downloadImageAs } from "../actions/actions";
+import type { DownloadFormat } from "../actions/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -49,14 +50,14 @@ export default function DashboardPage() {
     return logoDate >= monthAgo;
   }).length;
 
-  const handleDownload = async (imageUrl: string) => {
+  const handleDownload = async (imageUrl: string, format: DownloadFormat) => {
     setIsDownloading(true);
     try {
-      const result = await downloadImage(imageUrl);
+      const result = await downloadImageAs(imageUrl, format);
       if (result.success && result.data) {
         const a = document.createElement("a");
         a.href = result.data;
-        a.download = `logo.webp`;
+        a.download = `logo.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

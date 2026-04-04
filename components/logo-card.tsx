@@ -3,12 +3,12 @@ import { useState } from "react";
 import { SelectLogo } from "@/db/schema";
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import DownloadFormatButton from "@/components/download-format-button";
+import type { DownloadFormat } from "@/app/actions/actions";
 
 interface LogoCardProps {
   logo: SelectLogo;
-  onDownload: (imageUrl: string) => void;
+  onDownload: (imageUrl: string, format: DownloadFormat) => void;
 }
 
 const LogoCard = ({ logo, onDownload }: LogoCardProps) => {
@@ -52,15 +52,11 @@ const LogoCard = ({ logo, onDownload }: LogoCardProps) => {
               title="Background Color"
             />
           </div>
-          <Button
-            onClick={() => onDownload(logo.image_url)}
-            variant="outline"
+          <DownloadFormatButton
             size="sm"
-            className="w-full h-7 text-[10px]"
-          >
-            <Download className="mr-1 h-3 w-3" />
-            Download
-          </Button>
+            className="w-full"
+            onDownload={(fmt) => onDownload(logo.image_url, fmt)}
+          />
         </div>
       </CardContent>
     </Card>

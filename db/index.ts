@@ -39,3 +39,22 @@ LogoSchema.index({ userId: 1, createdAt: -1 });
 
 export const Logo = models.Logo || model('Logo', LogoSchema);
 
+const GeneratedImageSchema = new Schema(
+  {
+    image_url: { type: String, required: true },
+    prompt: { type: String, required: true },
+    category: { type: String, required: true },
+    style: { type: String, required: true },
+    color_tone: { type: String, default: '' },
+    aspect_ratio: { type: String, default: '1:1' },
+    size: { type: String, default: '1024x1024' },
+    username: { type: String, required: true },
+    userId: { type: String, required: true },
+  },
+  { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } }
+);
+
+GeneratedImageSchema.index({ userId: 1, createdAt: -1 });
+
+export const GeneratedImage = models.GeneratedImage || model('GeneratedImage', GeneratedImageSchema);
+

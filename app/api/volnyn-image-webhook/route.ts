@@ -6,9 +6,9 @@ import https from 'https';
 
 export async function POST(req: NextRequest) {
   try {
-    const { logoUrl, volnynUserId, timestamp, callbackUrl, signature } = await req.json();
+    const { imageUrl, volnynUserId, timestamp, callbackUrl, signature, context } = await req.json();
 
-    if (!logoUrl || !volnynUserId || !timestamp || !callbackUrl || !signature) {
+    if (!imageUrl || !volnynUserId || !timestamp || !callbackUrl || !signature || !context) {
       return NextResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 });
     }
 
@@ -17,9 +17,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Server misconfigured' }, { status: 500 });
     }
 
-    // Verify the HMAC signature
+    // Verify the HMAC signature (includes context to prevent tampering)
     const expectedSignature = createHmac('sha256', secret)
-      .update(`${volnynUserId}|${timestamp}|${callbackUrl}`)
+      .update(`${volnynUserId}|${timestamp}|${callbackUrl}|${context}`)
       .digest('hex');
 
     if (expectedSignature !== signature) {
@@ -31,27 +31,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Token expired' }, { status: 403 });
     }
 
-    // Read the logo file from public/logos/
-    let logoBase64: string;
+    // Read the image file from public/logos/
+    let imageBase64: string;
 
-    if (logoUrl.startsWith('/logos/')) {
-      const filePath = join(process.cwd(), 'public', logoUrl);
+    if (imageUrl.startsWith('/logos/')) {
+      const filePath = join(process.cwd(), 'public', imageUrl);
       const fileBuffer = await readFile(filePath);
-      logoBase64 = `data:image/png;base64,${fileBuffer.toString('base64')}`;
-    } else if (logoUrl.startsWith('data:')) {
-      logoBase64 = logoUrl;
+      imageBase64 = `data:image/png;base64,${fileBuffer.toString('base64')}`;
+    } else if (imageUrl.startsWith('data:')) {
+      imageBase64 = imageUrl;
     } else {
-      return NextResponse.json({ success: false, message: 'Invalid logo URL format' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Invalid image URL format' }, { status: 400 });
     }
 
-    // POST the logo to Volnyn's webhook endpoint
+    // POST the image to Volnyn's webhook endpoint
     // Use custom agent to allow self-signed certs in local development
     const payload = JSON.stringify({
       user_id: volnynUserId,
       timestamp,
       callback_url: callbackUrl,
       signature,
-      logo_data: logoBase64,
+      image_data: imageBase64,
+      context,
     });
 
     const volnynData = await new Promise<{ success: boolean; redirect_url?: string; message?: string }>((resolve, reject) => {
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(payload),
         },
-        rejectUnauthorized: false,
+        rejectUnauthorized: false, // Allow self-signed certs for local dev
       };
 
       const protocol = url.protocol === 'https:' ? https : require('http');
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
       redirect_url: volnynData.redirect_url,
     });
   } catch (error) {
-    console.error('[volnyn-webhook] Error:', error);
+    console.error('[volnyn-image-webhook] Error:', error);
     return NextResponse.json(
       { success: false, message: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 }

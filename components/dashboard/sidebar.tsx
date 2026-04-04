@@ -10,6 +10,7 @@ import {
   IconHome,
   IconCreditCard,
   IconX,
+  IconPhoto,
 } from "@tabler/icons-react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,11 @@ const navItems: NavItem[] = [
     title: "Generate",
     href: "/dashboard/generate",
     icon: IconSparkles,
+  },
+  {
+    title: "Generate Image",
+    href: "/dashboard/generate-image",
+    icon: IconPhoto,
   },
   {
     title: "My Designs",
@@ -55,6 +61,9 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
   const handleNavClick = (href: string) => {
     if (href === "/dashboard/generate") {
       window.dispatchEvent(new CustomEvent("resetGenerateSteps"));
+    }
+    if (href === "/dashboard/generate-image") {
+      window.dispatchEvent(new CustomEvent("resetGenerateImageSteps"));
     }
     if (onClose) {
       onClose();

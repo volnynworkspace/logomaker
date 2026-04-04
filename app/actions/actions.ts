@@ -4,9 +4,9 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import dedent from 'dedent';
 import { clerkClient, currentUser } from "@clerk/nextjs/server";
-import { ensureDbConnected, Logo } from '@/db';
+import { ensureDbConnected, Logo, GeneratedImage } from '@/db';
 import { saveImageLocally } from '@/lib/save-image';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import Stripe from 'stripe';
 
@@ -953,6 +953,89 @@ export async function downloadImage(url: string) {
   }
 }
 
+export type DownloadFormat = 'png' | 'jpg' | 'webp' | 'pdf';
+
+const FORMAT_MIME: Record<DownloadFormat, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  webp: 'image/webp',
+  pdf: 'application/pdf',
+};
+
+export async function downloadImageAs(url: string, format: DownloadFormat) {
+  'use server';
+
+  try {
+    // 1. Resolve source image to Buffer
+    let sourceBuffer: Buffer;
+
+    if (url.startsWith('/')) {
+      const filePath = join(process.cwd(), 'public', url);
+      sourceBuffer = await readFile(filePath);
+    } else {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch image');
+      sourceBuffer = Buffer.from(await response.arrayBuffer());
+    }
+
+    let outputBuffer: Buffer;
+
+    if (format === 'pdf') {
+      // Dynamically import to avoid bundling issues
+      const PDFDocument = (await import('pdfkit')).default;
+      const sharp = (await import('sharp')).default;
+      const metadata = await sharp(sourceBuffer).metadata();
+      const width = metadata.width || 1024;
+      const height = metadata.height || 1024;
+
+      // Ensure image is PNG for PDF embedding
+      const pngBuffer = await sharp(sourceBuffer).png().toBuffer();
+
+      outputBuffer = await new Promise<Buffer>((resolve, reject) => {
+        const doc = new PDFDocument({ size: [width, height], margin: 0 });
+        const chunks: Buffer[] = [];
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+        doc.image(pngBuffer, 0, 0, { width, height });
+        doc.end();
+      });
+    } else {
+      const sharp = (await import('sharp')).default;
+      switch (format) {
+        case 'jpg':
+          outputBuffer = await sharp(sourceBuffer)
+            .flatten({ background: '#ffffff' })
+            .jpeg({ quality: 92 })
+            .toBuffer();
+          break;
+        case 'webp':
+          outputBuffer = await sharp(sourceBuffer)
+            .webp({ quality: 90 })
+            .toBuffer();
+          break;
+        case 'png':
+        default:
+          outputBuffer = await sharp(sourceBuffer).png().toBuffer();
+          break;
+      }
+    }
+
+    const base64 = outputBuffer.toString('base64');
+    const mimeType = FORMAT_MIME[format];
+
+    return {
+      success: true,
+      data: `data:${mimeType};base64,${base64}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Failed to download image',
+    };
+  }
+}
+
 // Google Font mapping for each detected font style
 const FONT_STYLE_MAP: Record<string, string> = {
   'serif':        'Playfair Display',
@@ -1357,5 +1440,416 @@ Example for a logo with a shield and company name:
       success: false,
       error: error instanceof Error ? error.message : 'Failed to segment logo',
     };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMAGE GENERATION
+// ─────────────────────────────────────────────────────────────
+
+const ImageFormSchema = z.object({
+  prompt: z.string().min(10),
+  category: z.string(),
+  style: z.string(),
+  colorTone: z.string().optional(),
+  size: z.string().regex(/^\d+x\d+$/).default('1080x1080'),
+  quality: z.enum(['standard', 'hd']).default('standard'),
+  additionalInfo: z.string().optional(),
+});
+
+const imageCategoryLookup: Record<string, string> = {
+  illustration: 'digital illustration, hand-drawn feel, detailed artwork',
+  photography: 'photorealistic, professional photograph, natural lighting',
+  '3d-render': '3D rendered, volumetric lighting, octane render quality',
+  'digital-art': 'digital art, modern aesthetic, clean digital creation',
+  painting: 'oil painting style, visible brushstrokes, classical art technique',
+  abstract: 'abstract art, non-representational, bold shapes and colors',
+};
+
+const imageStyleLookup: Record<string, string> = {
+  realistic: 'photorealistic, highly detailed, true to life',
+  cartoon: 'cartoon style, bold outlines, flat colors, playful',
+  watercolor: 'watercolor painting, soft edges, translucent colors, paper texture',
+  minimalist: 'minimalist, simple composition, clean lines, limited palette',
+  cinematic: 'cinematic, dramatic lighting, movie still, wide angle',
+  vintage: 'vintage aesthetic, film grain, retro color grading, nostalgic',
+  anime: 'anime style, Japanese animation, vibrant, detailed',
+  surreal: 'surrealist, dreamlike, impossible scenes, imaginative',
+};
+
+const colorToneLookup: Record<string, string> = {
+  warm: 'warm color palette with reds, oranges, and golden tones',
+  cool: 'cool color palette with blues, teals, and silver tones',
+  vibrant: 'vibrant saturated colors, high contrast, eye-catching',
+  muted: 'muted pastel colors, soft and subtle tones',
+  monochrome: 'monochrome, black and white with shades of gray',
+  natural: 'natural earth tones, organic color palette',
+};
+
+const IMAGE_NEBIUS_VARIATIONS = [
+  { name: 'Detailed', suffix: 'Highly detailed, sharp focus, professional quality, intricate details.' },
+  { name: 'Atmospheric', suffix: 'Atmospheric lighting, dramatic mood, cinematic composition, depth of field.' },
+  { name: 'Vivid', suffix: 'Vivid colors, high saturation, eye-catching, dynamic composition, bold contrasts.' },
+  { name: 'Soft', suffix: 'Soft lighting, gentle tones, dreamy atmosphere, subtle details, serene mood.' },
+];
+
+const IMAGE_GEMINI_VARIATIONS = [
+  { name: 'Artistic', suffix: 'Artistic interpretation, creative composition, unique perspective, expressive.' },
+  { name: 'Clean', suffix: 'Clean composition, balanced layout, professional quality, well-structured.' },
+  { name: 'Bold', suffix: 'Bold contrasts, strong composition, striking visual impact, powerful imagery.' },
+  { name: 'Ethereal', suffix: 'Ethereal quality, soft gradients, otherworldly atmosphere, luminous feel.' },
+];
+
+function getCompositionHint(w: number, h: number): string {
+  if (w === h) return '';
+  const ratio = w > h ? w / h : h / w;
+  if (w > h) {
+    return ratio > 2.5
+      ? 'Ultra-wide panoramic banner composition, keep main subject centered.'
+      : 'Wide horizontal landscape composition.';
+  }
+  return ratio > 2.5
+    ? 'Very tall narrow vertical composition, keep main subject centered.'
+    : 'Tall vertical portrait composition.';
+}
+
+export async function generate8Images(formData: z.infer<typeof ImageFormSchema>) {
+  'use server';
+  try {
+    const user = await currentUser();
+    if (!user) {
+      return { success: false, error: 'User not authenticated', images: [] };
+    }
+
+    const isDev = process.env.NODE_ENV === 'development';
+    const currentRemaining = (user.unsafeMetadata?.remaining as number) || 0;
+
+    if (!isDev && currentRemaining < 8) {
+      return {
+        success: false,
+        error: 'You need at least 8 credits to generate image variations.',
+        images: [],
+      };
+    }
+
+    if (!isDev) {
+      await (await clerkClient()).users.updateUserMetadata(user.id, {
+        unsafeMetadata: { remaining: currentRemaining - 8 },
+      });
+    }
+
+    const validatedData = ImageFormSchema.parse(formData);
+    const nebiusClient = getAIClient();
+
+    const [targetWidth, targetHeight] = validatedData.size.split('x').map(Number);
+    const compositionHint = getCompositionHint(targetWidth, targetHeight);
+
+    const categoryDesc = imageCategoryLookup[validatedData.category] || '';
+    const styleDesc = imageStyleLookup[validatedData.style] || '';
+    const toneDesc = validatedData.colorTone ? (colorToneLookup[validatedData.colorTone] || '') : '';
+    const contextInstruction = validatedData.additionalInfo ? ` Additional details: ${validatedData.additionalInfo}` : '';
+    const compositionInstruction = compositionHint ? ` ${compositionHint}` : '';
+
+    // ── Nebius/Flux: 4 images (always generate at 1024x1024, resize later) ──
+    const nebiusPromise = Promise.allSettled(
+      IMAGE_NEBIUS_VARIATIONS.map(async (variation, i) => {
+        if (i > 0) await new Promise(r => setTimeout(r, i * 500));
+        const prompt = `${validatedData.prompt}. ${categoryDesc}. ${styleDesc}.${toneDesc ? ` ${toneDesc}.` : ''}${compositionInstruction} ${variation.suffix}${contextInstruction}`;
+        const response = await nebiusClient.images.generate({
+          model: 'black-forest-labs/flux-schnell',
+          prompt,
+          response_format: 'url',
+          size: '1024x1024',
+          n: 1,
+        });
+        return { url: response.data?.[0]?.url || '', style: variation.name };
+      })
+    );
+
+    // ── Gemini: 4 images ──
+    const geminiPromise = Promise.allSettled(
+      IMAGE_GEMINI_VARIATIONS.map(async (variation, i) => {
+        if (i > 0) await new Promise(r => setTimeout(r, i * 600));
+        const prompt = `Generate an image sized ${targetWidth}x${targetHeight} pixels.${compositionInstruction} ${validatedData.prompt}. ${categoryDesc}. ${styleDesc}.${toneDesc ? ` ${toneDesc}.` : ''} ${variation.suffix}${contextInstruction}`;
+        const url = await generateLogoWithGemini(prompt);
+        return { url, style: variation.name };
+      })
+    );
+
+    const [nebiusResults, geminiResults] = await Promise.all([nebiusPromise, geminiPromise]);
+
+    const nebiusImages = nebiusResults.map((result, i) => ({
+      url: result.status === 'fulfilled' ? result.value.url : '',
+      style: IMAGE_NEBIUS_VARIATIONS[i].name,
+      success: result.status === 'fulfilled' && !!result.value.url,
+    }));
+
+    const geminiImages = geminiResults.map((result, i) => {
+      if (result.status === 'rejected') {
+        console.error(`[Gemini Image] Variation "${IMAGE_GEMINI_VARIATIONS[i].name}" failed:`, result.reason?.message || result.reason);
+      }
+      return {
+        url: result.status === 'fulfilled' ? result.value.url : '',
+        style: IMAGE_GEMINI_VARIATIONS[i].name,
+        success: result.status === 'fulfilled' && !!result.value.url,
+      };
+    });
+
+    const images = [...nebiusImages, ...geminiImages];
+
+    // Save successful images locally and update URLs
+    const localImages = await Promise.all(
+      images.map(async (img) => {
+        if (img.success && img.url) {
+          try {
+            const localPath = await saveImageLocally(img.url);
+            return { ...img, url: localPath };
+          } catch {
+            return { ...img, success: false };
+          }
+        }
+        return img;
+      })
+    );
+
+    // Resize images to target dimensions if not 1024x1024
+    if (targetWidth !== 1024 || targetHeight !== 1024) {
+      const sharp = (await import('sharp')).default;
+      await Promise.allSettled(
+        localImages
+          .filter((img) => img.success && img.url)
+          .map(async (img) => {
+            const fullPath = join(process.cwd(), 'public', img.url);
+            const buffer = await readFile(fullPath);
+            const resized = await sharp(buffer)
+              .resize(targetWidth, targetHeight, { fit: 'cover' })
+              .png()
+              .toBuffer();
+            await writeFile(fullPath, resized);
+          })
+      );
+    }
+
+    // Save to MongoDB
+    try {
+      await ensureDbConnected();
+      const aspectRatio = targetWidth === targetHeight ? '1:1'
+        : targetWidth > targetHeight ? `${(targetWidth / targetHeight).toFixed(1)}:1`
+        : `1:${(targetHeight / targetWidth).toFixed(1)}`;
+      await Promise.allSettled(
+        localImages
+          .filter((img) => img.success && img.url)
+          .map((img) =>
+            GeneratedImage.create({
+              image_url: img.url,
+              prompt: validatedData.prompt,
+              category: validatedData.category,
+              style: validatedData.style,
+              color_tone: validatedData.colorTone || '',
+              aspect_ratio: aspectRatio,
+              size: validatedData.size,
+              username: user.username ?? user.firstName ?? 'Anonymous',
+              userId: user.id,
+            })
+          )
+      );
+    } catch (_) {
+      // DB errors don't block the response
+    }
+
+    return { success: true, images: localImages };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate images',
+      images: [],
+    };
+  }
+}
+
+export async function generate8ImagesForVolnyn(
+  formData: z.infer<typeof ImageFormSchema>,
+  volnynUserId: string,
+  timestamp: string,
+  signature: string,
+  callbackUrl: string,
+  context: string
+) {
+  'use server';
+  try {
+    // Verify HMAC signature server-side (includes context to prevent tampering)
+    const { createHmac } = await import('crypto');
+    const secret = process.env.LOGOAI_SHARED_SECRET;
+    if (!secret) {
+      return { success: false, error: 'Server misconfigured', images: [] };
+    }
+
+    const expectedSignature = createHmac('sha256', secret)
+      .update(`${volnynUserId}|${timestamp}|${callbackUrl}|${context}`)
+      .digest('hex');
+
+    if (expectedSignature !== signature) {
+      return { success: false, error: 'Invalid signature', images: [] };
+    }
+
+    // Check token expiry (30 minutes)
+    if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 1800) {
+      return { success: false, error: 'Token expired', images: [] };
+    }
+
+    // Skip Clerk auth and credit checks — proceed directly with generation
+    const validatedData = ImageFormSchema.parse(formData);
+    const nebiusClient = getAIClient();
+
+    const [targetWidth, targetHeight] = validatedData.size.split('x').map(Number);
+    const compositionHint = getCompositionHint(targetWidth, targetHeight);
+
+    const categoryDesc = imageCategoryLookup[validatedData.category] || '';
+    const styleDesc = imageStyleLookup[validatedData.style] || '';
+    const toneDesc = validatedData.colorTone ? (colorToneLookup[validatedData.colorTone] || '') : '';
+    const contextInstruction = validatedData.additionalInfo ? ` Additional details: ${validatedData.additionalInfo}` : '';
+    const compositionInstruction = compositionHint ? ` ${compositionHint}` : '';
+
+    // Nebius/Flux: 4 images (always generate at 1024x1024, resize later)
+    const nebiusPromise = Promise.allSettled(
+      IMAGE_NEBIUS_VARIATIONS.map(async (variation, i) => {
+        if (i > 0) await new Promise(r => setTimeout(r, i * 500));
+        const prompt = `${validatedData.prompt}. ${categoryDesc}. ${styleDesc}.${toneDesc ? ` ${toneDesc}.` : ''}${compositionInstruction} ${variation.suffix}${contextInstruction}`;
+        const response = await nebiusClient.images.generate({
+          model: 'black-forest-labs/flux-schnell',
+          prompt,
+          response_format: 'url',
+          size: '1024x1024',
+          n: 1,
+        });
+        return { url: response.data?.[0]?.url || '', style: variation.name };
+      })
+    );
+
+    // Gemini: 4 images
+    const geminiPromise = Promise.allSettled(
+      IMAGE_GEMINI_VARIATIONS.map(async (variation, i) => {
+        if (i > 0) await new Promise(r => setTimeout(r, i * 600));
+        const prompt = `Generate an image sized ${targetWidth}x${targetHeight} pixels.${compositionInstruction} ${validatedData.prompt}. ${categoryDesc}. ${styleDesc}.${toneDesc ? ` ${toneDesc}.` : ''} ${variation.suffix}${contextInstruction}`;
+        const url = await generateLogoWithGemini(prompt);
+        return { url, style: variation.name };
+      })
+    );
+
+    const [nebiusResults, geminiResults] = await Promise.all([nebiusPromise, geminiPromise]);
+
+    const nebiusImages = nebiusResults.map((result, i) => ({
+      url: result.status === 'fulfilled' ? result.value.url : '',
+      style: IMAGE_NEBIUS_VARIATIONS[i].name,
+      success: result.status === 'fulfilled' && !!result.value.url,
+    }));
+
+    const geminiImages = geminiResults.map((result, i) => ({
+      url: result.status === 'fulfilled' ? result.value.url : '',
+      style: IMAGE_GEMINI_VARIATIONS[i].name,
+      success: result.status === 'fulfilled' && !!result.value.url,
+    }));
+
+    const images = [...nebiusImages, ...geminiImages];
+
+    // Save successful images locally
+    const localImages = await Promise.all(
+      images.map(async (img) => {
+        if (img.success && img.url) {
+          try {
+            const localPath = await saveImageLocally(img.url);
+            return { ...img, url: localPath };
+          } catch {
+            return { ...img, success: false };
+          }
+        }
+        return img;
+      })
+    );
+
+    // Resize images to target dimensions if not 1024x1024
+    if (targetWidth !== 1024 || targetHeight !== 1024) {
+      const sharp = (await import('sharp')).default;
+      await Promise.allSettled(
+        localImages
+          .filter((img) => img.success && img.url)
+          .map(async (img) => {
+            const fullPath = join(process.cwd(), 'public', img.url);
+            const buffer = await readFile(fullPath);
+            const resized = await sharp(buffer)
+              .resize(targetWidth, targetHeight, { fit: 'cover' })
+              .png()
+              .toBuffer();
+            await writeFile(fullPath, resized);
+          })
+      );
+    }
+
+    // Save to MongoDB with volnyn user reference
+    try {
+      await ensureDbConnected();
+      const aspectRatio = targetWidth === targetHeight ? '1:1'
+        : targetWidth > targetHeight ? `${(targetWidth / targetHeight).toFixed(1)}:1`
+        : `1:${(targetHeight / targetWidth).toFixed(1)}`;
+      await Promise.allSettled(
+        localImages
+          .filter((img) => img.success && img.url)
+          .map((img) =>
+            GeneratedImage.create({
+              image_url: img.url,
+              prompt: validatedData.prompt,
+              category: validatedData.category,
+              style: validatedData.style,
+              color_tone: validatedData.colorTone || '',
+              aspect_ratio: aspectRatio,
+              size: validatedData.size,
+              username: `volnyn_user_${volnynUserId}`,
+              userId: `volnyn_${volnynUserId}`,
+            })
+          )
+      );
+    } catch (_) {
+      // DB errors don't block the response
+    }
+
+    return { success: true, images: localImages };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate images',
+      images: [],
+    };
+  }
+}
+
+export async function checkImageHistory() {
+  const user = await currentUser();
+
+  if (!user) {
+    return null;
+  }
+
+  try {
+    await ensureDbConnected();
+    const userImages = await GeneratedImage.find({ userId: user.id }).sort({ createdAt: -1 }).limit(50);
+
+    return userImages.map((img: any) => ({
+      id: img._id.toString(),
+      _id: img._id.toString(),
+      image_url: img.image_url,
+      prompt: img.prompt,
+      category: img.category,
+      style: img.style,
+      color_tone: img.color_tone,
+      aspect_ratio: img.aspect_ratio,
+      size: img.size,
+      username: img.username,
+      userId: img.userId,
+      createdAt: img.createdAt,
+      updatedAt: img.updatedAt,
+    }));
+  } catch (error) {
+    console.error('[checkImageHistory] Failed to fetch images:', error);
+    return { error: error instanceof Error ? error.message : 'Database error' };
   }
 }
