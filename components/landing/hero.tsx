@@ -74,7 +74,16 @@ export default function Hero() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="mt-10 w-full max-w-2xl"
           >
-            {!isAuthenticated ? (
+            {status === "loading" ? (
+              <div className="relative bg-white rounded-2xl shadow-xl shadow-black/5 border border-border/60 p-2">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <Plus className="w-5 h-5 text-muted-foreground/50 flex-shrink-0" />
+                  <span className="text-muted-foreground text-base flex-1 text-left">
+                    Enter your brand or company name...
+                  </span>
+                </div>
+              </div>
+            ) : !isAuthenticated ? (
               <div
                 onClick={() => signIn("google", { callbackUrl: "/dashboard/generate" })}
                 className="relative bg-white rounded-2xl shadow-xl shadow-black/5 border border-border/60 p-2 cursor-pointer hover:shadow-2xl hover:shadow-black/10 transition-shadow duration-300"

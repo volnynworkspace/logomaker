@@ -51,7 +51,7 @@ export default function Navbar() {
 
             {/* Desktop Auth */}
             <div className="hidden md:flex items-center gap-3">
-              {!isMounted ? (
+              {!isMounted || status === "loading" ? (
                 <div className="w-[90px] h-[40px]" />
               ) : (
                 <>
@@ -114,7 +114,7 @@ export default function Navbar() {
               className="md:hidden border-t border-border/40 bg-background"
             >
               <div className="px-4 py-6 space-y-1">
-                {isMounted && (
+                {isMounted && status !== "loading" && (
                   <div className="space-y-3">
                     {!isAuthenticated ? (
                       <>

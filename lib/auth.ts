@@ -12,17 +12,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        // Dynamic import to avoid loading mongoose in Edge Runtime (middleware)
-        const { ensureDbConnected, User } = await import("@/db");
-        await ensureDbConnected();
-        const existing = await User.findOne({ googleId: account.providerAccountId });
+        // Dynamic import to avoid loading Prisma in Edge Runtime (middleware)
+        const { prisma } = await import("@/lib/prisma");
+        const existing = await prisma.user.findUnique({
+          where: { googleId: account.providerAccountId },
+        });
         if (!existing) {
-          await User.create({
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            googleId: account.providerAccountId,
-            credits: 10,
+          await prisma.user.create({
+            data: {
+              email: user.email!,
+              name: user.name,
+              image: user.image,
+              googleId: account.providerAccountId,
+              credits: 10,
+            },
           });
         }
       }
@@ -30,11 +33,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, account }) {
       if (account?.provider === "google") {
-        const { ensureDbConnected, User } = await import("@/db");
-        await ensureDbConnected();
-        const dbUser = await User.findOne({ googleId: account.providerAccountId });
+        const { prisma } = await import("@/lib/prisma");
+        const dbUser = await prisma.user.findUnique({
+          where: { googleId: account.providerAccountId },
+        });
         if (dbUser) {
-          token.userId = dbUser._id.toString();
+          token.userId = dbUser.id;
           token.googleId = account.providerAccountId;
         }
       }

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { ensureDbConnected } from '@/db';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
   try {
-    await ensureDbConnected();
+    await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
@@ -15,5 +15,3 @@ export async function GET() {
     );
   }
 }
-
-

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { ensureDbConnected, User } from '@/db';
+import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
@@ -55,9 +55,9 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        await ensureDbConnected();
-        await User.findByIdAndUpdate(userId, {
-          $inc: { credits: parseInt(credits, 10) },
+        await prisma.user.update({
+          where: { id: userId },
+          data: { credits: { increment: parseInt(credits, 10) } },
         });
 
         return NextResponse.json({ received: true });
