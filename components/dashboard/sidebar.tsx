@@ -1,6 +1,7 @@
 "use client";
 
-import { SignedIn, UserButton, useUser } from "@clerk/nextjs";
+import { useSession, signOut } from "next-auth/react";
+import UserButton from "@/components/auth/user-button";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -56,7 +57,7 @@ interface DashboardSidebarProps {
 
 export default function DashboardSidebar({ isOpen = false, onClose }: DashboardSidebarProps) {
   const pathname = usePathname();
-  const { user } = useUser();
+  const { data: session } = useSession();
 
   const handleNavClick = (href: string) => {
     if (href === "/dashboard/generate") {
@@ -142,25 +143,19 @@ export default function DashboardSidebar({ isOpen = false, onClose }: DashboardS
               <span>Back to Home</span>
             </Link>
 
-            <SignedIn>
+            {session?.user && (
               <div className="flex items-center gap-3 px-3 py-3">
-                <UserButton
-                  appearance={{
-                    elements: {
-                      avatarBox: "w-8 h-8",
-                    }
-                  }}
-                />
+                <UserButton size="sm" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">
-                    {user?.firstName || user?.username || "User"}
+                    {session.user.name || "User"}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {user?.primaryEmailAddress?.emailAddress || ""}
+                    {session.user.email || ""}
                   </p>
                 </div>
               </div>
-            </SignedIn>
+            )}
           </div>
         </div>
       </aside>

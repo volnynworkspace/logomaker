@@ -58,3 +58,19 @@ GeneratedImageSchema.index({ userId: 1, createdAt: -1 });
 
 export const GeneratedImage = models.GeneratedImage || model('GeneratedImage', GeneratedImageSchema);
 
+const UserSchema = new Schema(
+  {
+    email: { type: String, required: true, unique: true },
+    name: { type: String },
+    image: { type: String },
+    googleId: { type: String, required: true, unique: true },
+    credits: { type: Number, default: 10 },
+  },
+  { timestamps: true }
+);
+
+UserSchema.index({ googleId: 1 });
+UserSchema.index({ email: 1 });
+
+export const User = models.User || model('User', UserSchema);
+

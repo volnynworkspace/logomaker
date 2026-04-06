@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
+import { SessionProvider } from "next-auth/react";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import Script from "next/script";
@@ -70,7 +70,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <SessionProvider>
       <html lang="en" suppressHydrationWarning>
         <body className={`${inter.variable} font-primary antialiased`}>
           {children}
@@ -82,6 +82,6 @@ export default function RootLayout({
         data-website-id="314e7cd3-1a01-43c1-947f-c855c077906f"
       />
       </html>
-    </ClerkProvider>
+    </SessionProvider>
   );
 }

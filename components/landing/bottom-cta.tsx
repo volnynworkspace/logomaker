@@ -2,13 +2,16 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import { useSession, signIn } from "next-auth/react";
 import { ArrowRight, Plus, Paperclip } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function BottomCTA() {
   const [prompt, setPrompt] = useState("");
   const router = useRouter();
+  const { status } = useSession();
+
+  const isAuthenticated = status === "authenticated";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,30 +40,25 @@ export default function BottomCTA() {
 
           {/* Input CTA */}
           <div className="mt-10 max-w-xl mx-auto">
-            <SignedOut>
-              <SignInButton
-                signUpForceRedirectUrl="/dashboard/generate"
-                forceRedirectUrl="/dashboard/generate"
-                mode="modal"
+            {!isAuthenticated ? (
+              <div
+                onClick={() => signIn("google", { callbackUrl: "/dashboard/generate" })}
+                className="relative bg-white rounded-2xl shadow-xl shadow-black/5 border border-border/60 p-2 cursor-pointer hover:shadow-2xl hover:shadow-black/10 transition-shadow duration-300"
               >
-                <div className="relative bg-white rounded-2xl shadow-xl shadow-black/5 border border-border/60 p-2 cursor-pointer hover:shadow-2xl hover:shadow-black/10 transition-shadow duration-300">
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <Plus className="w-5 h-5 text-muted-foreground/50 flex-shrink-0" />
-                    <span className="text-muted-foreground text-base flex-1 text-left">
-                      Enter your brand or company name...
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Paperclip className="w-4 h-4 text-muted-foreground/40" />
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center shadow-md">
-                        <ArrowRight className="w-4 h-4 text-white" />
-                      </div>
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <Plus className="w-5 h-5 text-muted-foreground/50 flex-shrink-0" />
+                  <span className="text-muted-foreground text-base flex-1 text-left">
+                    Enter your brand or company name...
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="w-4 h-4 text-muted-foreground/40" />
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center shadow-md">
+                      <ArrowRight className="w-4 h-4 text-white" />
                     </div>
                   </div>
                 </div>
-              </SignInButton>
-            </SignedOut>
-
-            <SignedIn>
+              </div>
+            ) : (
               <form onSubmit={handleSubmit}>
                 <div className="relative bg-white rounded-2xl shadow-xl shadow-black/5 border border-border/60 p-2 hover:shadow-2xl hover:shadow-black/10 transition-shadow duration-300">
                   <div className="flex items-center gap-3 px-4 py-1">
@@ -84,7 +82,7 @@ export default function BottomCTA() {
                   </div>
                 </div>
               </form>
-            </SignedIn>
+            )}
           </div>
         </motion.div>
       </div>

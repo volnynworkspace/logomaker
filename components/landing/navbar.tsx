@@ -1,7 +1,6 @@
 "use client";
-import { SignedIn, UserButton } from "@clerk/nextjs";
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
-import { SignedOut } from "@clerk/nextjs";
+import { useSession, signIn } from "next-auth/react";
+import UserButton from "@/components/auth/user-button";
 import React, { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import Link from "next/link";
@@ -11,6 +10,9 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function Navbar() {
   const [isMounted, setIsMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { data: session, status } = useSession();
+
+  const isAuthenticated = status === "authenticated";
 
   useEffect(() => {
     setIsMounted(true);
@@ -53,45 +55,35 @@ export default function Navbar() {
                 <div className="w-[90px] h-[40px]" />
               ) : (
                 <>
-                  <SignedOut>
-                    <SignInButton
-                      signUpForceRedirectUrl="/dashboard"
-                      forceRedirectUrl="/dashboard"
-                      mode="modal"
-                    >
-                      <button className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-2">
+                  {!isAuthenticated ? (
+                    <>
+                      <button
+                        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+                        className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
+                      >
                         Log in
                       </button>
-                    </SignInButton>
-                    <SignUpButton
-                      forceRedirectUrl="/dashboard"
-                      mode="modal"
-                    >
                       <Button
                         size="sm"
                         className="bg-foreground text-background hover:bg-foreground/90 rounded-lg px-5 font-medium text-sm"
+                        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
                       >
                         Get started
                       </Button>
-                    </SignUpButton>
-                  </SignedOut>
-                  <SignedIn>
-                    <Link href="/dashboard">
-                      <Button
-                        size="sm"
-                        className="bg-foreground text-background hover:bg-foreground/90 rounded-lg px-5 font-medium text-sm"
-                      >
-                        Dashboard
-                      </Button>
-                    </Link>
-                    <UserButton
-                      appearance={{
-                        elements: {
-                          avatarBox: "w-8 h-8 rounded-full"
-                        }
-                      }}
-                    />
-                  </SignedIn>
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/dashboard">
+                        <Button
+                          size="sm"
+                          className="bg-foreground text-background hover:bg-foreground/90 rounded-lg px-5 font-medium text-sm"
+                        >
+                          Dashboard
+                        </Button>
+                      </Link>
+                      <UserButton size="sm" />
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -124,50 +116,42 @@ export default function Navbar() {
               <div className="px-4 py-6 space-y-1">
                 {isMounted && (
                   <div className="space-y-3">
-                    <SignedOut>
-                      <SignInButton
-                        signUpForceRedirectUrl="/dashboard"
-                        forceRedirectUrl="/dashboard"
-                        mode="modal"
-                      >
+                    {!isAuthenticated ? (
+                      <>
                         <Button
                           variant="ghost"
                           className="w-full justify-center text-sm font-medium"
-                          onClick={() => setMobileMenuOpen(false)}
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                            signIn("google", { callbackUrl: "/dashboard" });
+                          }}
                         >
                           Log in
                         </Button>
-                      </SignInButton>
-                      <SignUpButton
-                        forceRedirectUrl="/dashboard"
-                        mode="modal"
-                      >
                         <Button
                           className="w-full bg-foreground text-background hover:bg-foreground/90"
-                          onClick={() => setMobileMenuOpen(false)}
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                            signIn("google", { callbackUrl: "/dashboard" });
+                          }}
                         >
                           Get started
                         </Button>
-                      </SignUpButton>
-                    </SignedOut>
-                    <SignedIn>
-                      <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
-                        <Button
-                          className="w-full bg-foreground text-background hover:bg-foreground/90 font-medium"
-                        >
-                          Dashboard
-                        </Button>
-                      </Link>
-                      <div className="flex items-center justify-center pt-2">
-                        <UserButton
-                          appearance={{
-                            elements: {
-                              avatarBox: "w-10 h-10 rounded-full"
-                            }
-                          }}
-                        />
-                      </div>
-                    </SignedIn>
+                      </>
+                    ) : (
+                      <>
+                        <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                          <Button
+                            className="w-full bg-foreground text-background hover:bg-foreground/90 font-medium"
+                          >
+                            Dashboard
+                          </Button>
+                        </Link>
+                        <div className="flex items-center justify-center pt-2">
+                          <UserButton />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
