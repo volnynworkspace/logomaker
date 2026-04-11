@@ -52,3 +52,5 @@ __MACOSX/
 
 # generated logos (stored locally)
 /public/logos/
+
+/lib/generated/prisma

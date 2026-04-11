@@ -3,8 +3,9 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import dedent from 'dedent';
-import { clerkClient, currentUser } from "@clerk/nextjs/server";
-import { ensureDbConnected, Logo, GeneratedImage } from '@/db';
+import { auth } from "@/lib/auth";
+import { prisma } from '@/lib/prisma';
+import { getCreditsForUser, deductCredits } from '@/lib/credits';
 import { saveImageLocally } from '@/lib/save-image';
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
@@ -490,14 +491,13 @@ export async function generateLogoWithBlueprint(formData: z.infer<typeof FormSch
 export async function generateLogo(formData: z.infer<typeof FormSchema>) {
   'use server';
   try {
-    const user = await currentUser();
-    if (!user) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return { success: false, error: 'User not authenticated' };
     }
 
-    // Check credits from Clerk metadata
     const isDev = process.env.NODE_ENV === 'development';
-    const currentRemaining = (user.unsafeMetadata?.remaining as number) || 0;
+    const currentRemaining = await getCreditsForUser(session.user.id);
 
     if (!isDev && currentRemaining <= 0) {
       return {
@@ -508,9 +508,7 @@ export async function generateLogo(formData: z.infer<typeof FormSchema>) {
 
     // Deduct 1 credit (skipped in development)
     if (!isDev) {
-      await (await clerkClient()).users.updateUserMetadata(user.id, {
-        unsafeMetadata: { remaining: currentRemaining - 1 },
-      });
+      await deductCredits(session.user.id, 1);
     }
 
     // Credits deducted — run the blueprint component pipeline
@@ -524,17 +522,16 @@ export async function generateLogo(formData: z.infer<typeof FormSchema>) {
 
     const imageUrl = await saveImageLocally(result.url);
 
-    const DatabaseData = {
-      image_url: imageUrl,
-      primary_color: validatedData.primaryColor,
-      background_color: validatedData.secondaryColor,
-      username: user.username ?? user.firstName ?? 'Anonymous',
-      userId: user.id,
-    };
-
     try {
-      await ensureDbConnected();
-      await Logo.create(DatabaseData);
+      await prisma.logo.create({
+        data: {
+          imageUrl: imageUrl,
+          primaryColor: validatedData.primaryColor,
+          backgroundColor: validatedData.secondaryColor,
+          username: session.user.name ?? 'Anonymous',
+          userId: session.user.id,
+        },
+      });
     } catch (error) {
       const dbError = error instanceof Error
         ? new Error(`Database insertion failed: ${error.message}`)
@@ -615,13 +612,13 @@ async function generateLogoWithGemini(prompt: string): Promise<string> {
 export async function generate8Logos(formData: z.infer<typeof FormSchema>) {
   'use server';
   try {
-    const user = await currentUser();
-    if (!user) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return { success: false, error: 'User not authenticated', logos: [] };
     }
 
     const isDev = process.env.NODE_ENV === 'development';
-    const currentRemaining = (user.unsafeMetadata?.remaining as number) || 0;
+    const currentRemaining = await getCreditsForUser(session.user.id);
 
     if (!isDev && currentRemaining < 8) {
       return {
@@ -632,9 +629,7 @@ export async function generate8Logos(formData: z.infer<typeof FormSchema>) {
     }
 
     if (!isDev) {
-      await (await clerkClient()).users.updateUserMetadata(user.id, {
-        unsafeMetadata: { remaining: currentRemaining - 8 },
-      });
+      await deductCredits(session.user.id, 8);
     }
 
     const validatedData = FormSchema.parse(formData);
@@ -710,19 +705,20 @@ export async function generate8Logos(formData: z.infer<typeof FormSchema>) {
       })
     );
 
-    // Save to MongoDB with local paths
+    // Save to DB with local paths
     try {
-      await ensureDbConnected();
       await Promise.allSettled(
         localLogos
           .filter((l) => l.success && l.url)
           .map((l) =>
-            Logo.create({
-              image_url: l.url,
-              primary_color: validatedData.primaryColor,
-              background_color: validatedData.secondaryColor,
-              username: user.username ?? user.firstName ?? 'Anonymous',
-              userId: user.id,
+            prisma.logo.create({
+              data: {
+                imageUrl: l.url!,
+                primaryColor: validatedData.primaryColor,
+                backgroundColor: validatedData.secondaryColor,
+                username: session.user.name ?? 'Anonymous',
+                userId: session.user.id,
+              },
             })
           )
       );
@@ -834,19 +830,20 @@ export async function generate8LogosForVolnyn(
       })
     );
 
-    // Save to MongoDB with volnyn user reference
+    // Save to DB with volnyn user reference
     try {
-      await ensureDbConnected();
       await Promise.allSettled(
         localLogos
           .filter((l) => l.success && l.url)
           .map((l) =>
-            Logo.create({
-              image_url: l.url,
-              primary_color: validatedData.primaryColor,
-              background_color: validatedData.secondaryColor,
-              username: `volnyn_user_${volnynUserId}`,
-              userId: `volnyn_${volnynUserId}`,
+            prisma.logo.create({
+              data: {
+                imageUrl: l.url!,
+                primaryColor: validatedData.primaryColor,
+                backgroundColor: validatedData.secondaryColor,
+                username: `volnyn_user_${volnynUserId}`,
+                userId: `volnyn_${volnynUserId}`,
+              },
             })
           )
       );
@@ -865,25 +862,28 @@ export async function generate8LogosForVolnyn(
 }
 
 export async function checkHistory() {
-  const user = await currentUser();
+  const session = await auth();
 
-  if (!user) {
+  if (!session?.user?.id) {
     return null;
   }
 
   try {
-    await ensureDbConnected();
-    const userLogos = await Logo.find({ userId: user.id }).sort({ createdAt: -1 }).limit(50);
+    const userLogos = await prisma.logo.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
 
     return userLogos.map(logo => ({
-      id: logo._id.toString(),
-      _id: logo._id.toString(),
-      image_url: logo.image_url,
-      primary_color: logo.primary_color,
-      background_color: logo.background_color,
+      id: logo.id,
+      _id: logo.id,
+      image_url: logo.imageUrl,
+      primary_color: logo.primaryColor,
+      background_color: logo.backgroundColor,
       username: logo.username,
       userId: logo.userId,
-      is_edited: logo.is_edited ?? false,
+      is_edited: logo.isEdited ?? false,
       createdAt: logo.createdAt,
       updatedAt: logo.updatedAt,
     }));
@@ -895,23 +895,23 @@ export async function checkHistory() {
 
 export async function allLogos(){
   try{
-    await ensureDbConnected();
-    const allLogos = await Logo.find({}).sort({ createdAt: -1 }).limit(100);
+    const allLogos = await prisma.logo.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
     return allLogos.map(logo => ({
-      id: logo._id.toString(),
-      _id: logo._id.toString(),
-      image_url: logo.image_url,
-      primary_color: logo.primary_color,
-      background_color: logo.background_color,
+      id: logo.id,
+      _id: logo.id,
+      image_url: logo.imageUrl,
+      primary_color: logo.primaryColor,
+      background_color: logo.backgroundColor,
       username: logo.username,
       userId: logo.userId,
-      is_edited: logo.is_edited ?? false,
+      is_edited: logo.isEdited ?? false,
       createdAt: logo.createdAt,
       updatedAt: logo.updatedAt,
     }));
   } catch (error) {
-    // Log error but don't expose to client
-    // In production, use proper logging service
     return null;
   }
 }
@@ -1108,35 +1108,14 @@ Return ONLY a JSON object:
 export async function getCredits() {
   'use server';
   try {
-    const user = await currentUser();
-    if (!user) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return { remaining: 0, limit: 999999 };
     }
 
-    // Initialize free credits for first-time users
-    const FREE_CREDITS = 10;
-    if (!user.unsafeMetadata || user.unsafeMetadata.remaining === undefined) {
-      await (await clerkClient()).users.updateUserMetadata(user.id, {
-        unsafeMetadata: {
-          remaining: FREE_CREDITS,
-        },
-      });
-      return {
-        remaining: FREE_CREDITS,
-        limit: 999999
-      };
-    }
-    
-    // Get credits from Clerk metadata
-    const remaining = (user.unsafeMetadata.remaining as number) || 0;
-    
-    // Return unlimited display - credits are tracked individually
-    return { 
-      remaining,
-      limit: 999999
-    };
+    const remaining = await getCreditsForUser(session.user.id);
+    return { remaining, limit: 999999 };
   } catch (error) {
-    // Return default credits on error
     return { remaining: 0, limit: 999999 };
   }
 }
@@ -1144,8 +1123,8 @@ export async function getCredits() {
 export async function createStripeCheckoutSession(planId: string) {
   'use server';
   try {
-    const user = await currentUser();
-    if (!user) {
+    const authSession = await auth();
+    if (!authSession?.user?.id) {
       return { success: false, error: 'User not authenticated' };
     }
 
@@ -1172,8 +1151,8 @@ export async function createStripeCheckoutSession(planId: string) {
 
     // Create Stripe checkout session
     const stripe = getStripeClient();
-    const session = await stripe.checkout.sessions.create({
-      customer_email: user.emailAddresses[0]?.emailAddress,
+    const stripeSession = await stripe.checkout.sessions.create({
+      customer_email: authSession.user.email ?? undefined,
       payment_method_types: ['card'],
       line_items: [
         {
@@ -1184,9 +1163,9 @@ export async function createStripeCheckoutSession(planId: string) {
       mode: 'payment',
       success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard/credits?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/dashboard/credits?canceled=true`,
-      client_reference_id: user.id,
+      client_reference_id: authSession.user.id,
       metadata: {
-        userId: user.id,
+        userId: authSession.user.id,
         planId,
         credits: config.credits.toString(),
       },
@@ -1194,8 +1173,8 @@ export async function createStripeCheckoutSession(planId: string) {
 
     return {
       success: true,
-      url: session.url,
-      sessionId: session.id,
+      url: stripeSession.url,
+      sessionId: stripeSession.id,
     };
   } catch (error) {
     // Return error without exposing internal details
@@ -1214,19 +1193,20 @@ export async function saveEditedLogo({
 }) {
   'use server';
   try {
-    const user = await currentUser();
-    if (!user) return { success: false, error: 'User not authenticated' };
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: 'User not authenticated' };
 
     const localPath = await saveImageLocally(imageDataUrl);
 
-    await ensureDbConnected();
-    await Logo.create({
-      image_url: localPath,
-      primary_color: primaryColor,
-      background_color: backgroundColor,
-      username: user.username ?? user.firstName ?? 'Anonymous',
-      userId: user.id,
-      is_edited: true,
+    await prisma.logo.create({
+      data: {
+        imageUrl: localPath,
+        primaryColor: primaryColor,
+        backgroundColor: backgroundColor,
+        username: session.user.name ?? 'Anonymous',
+        userId: session.user.id,
+        isEdited: true,
+      },
     });
 
     return { success: true };
@@ -1238,11 +1218,11 @@ export async function saveEditedLogo({
 export async function reEditWithAI(formData: z.infer<typeof FormSchema>) {
   'use server';
   try {
-    const user = await currentUser();
-    if (!user) return { success: false, error: 'User not authenticated' };
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: 'User not authenticated' };
 
     const isDev = process.env.NODE_ENV === 'development';
-    const currentRemaining = (user.unsafeMetadata?.remaining as number) || 0;
+    const currentRemaining = await getCreditsForUser(session.user.id);
 
     if (!isDev && currentRemaining <= 0) {
       return { success: false, error: "You've run out of credits. Please purchase more credits to continue." };
@@ -1250,9 +1230,7 @@ export async function reEditWithAI(formData: z.infer<typeof FormSchema>) {
 
     // Deduct 1 credit (skipped in development)
     if (!isDev) {
-      await (await clerkClient()).users.updateUserMetadata(user.id, {
-        unsafeMetadata: { remaining: currentRemaining - 1 },
-      });
+      await deductCredits(session.user.id, 1);
     }
 
     // Use blueprint pipeline for re-edit too
@@ -1516,13 +1494,13 @@ function getCompositionHint(w: number, h: number): string {
 export async function generate8Images(formData: z.infer<typeof ImageFormSchema>) {
   'use server';
   try {
-    const user = await currentUser();
-    if (!user) {
+    const session = await auth();
+    if (!session?.user?.id) {
       return { success: false, error: 'User not authenticated', images: [] };
     }
 
     const isDev = process.env.NODE_ENV === 'development';
-    const currentRemaining = (user.unsafeMetadata?.remaining as number) || 0;
+    const currentRemaining = await getCreditsForUser(session.user.id);
 
     if (!isDev && currentRemaining < 8) {
       return {
@@ -1533,9 +1511,7 @@ export async function generate8Images(formData: z.infer<typeof ImageFormSchema>)
     }
 
     if (!isDev) {
-      await (await clerkClient()).users.updateUserMetadata(user.id, {
-        unsafeMetadata: { remaining: currentRemaining - 8 },
-      });
+      await deductCredits(session.user.id, 8);
     }
 
     const validatedData = ImageFormSchema.parse(formData);
@@ -1630,9 +1606,8 @@ export async function generate8Images(formData: z.infer<typeof ImageFormSchema>)
       );
     }
 
-    // Save to MongoDB
+    // Save to DB
     try {
-      await ensureDbConnected();
       const aspectRatio = targetWidth === targetHeight ? '1:1'
         : targetWidth > targetHeight ? `${(targetWidth / targetHeight).toFixed(1)}:1`
         : `1:${(targetHeight / targetWidth).toFixed(1)}`;
@@ -1640,16 +1615,18 @@ export async function generate8Images(formData: z.infer<typeof ImageFormSchema>)
         localImages
           .filter((img) => img.success && img.url)
           .map((img) =>
-            GeneratedImage.create({
-              image_url: img.url,
-              prompt: validatedData.prompt,
-              category: validatedData.category,
-              style: validatedData.style,
-              color_tone: validatedData.colorTone || '',
-              aspect_ratio: aspectRatio,
-              size: validatedData.size,
-              username: user.username ?? user.firstName ?? 'Anonymous',
-              userId: user.id,
+            prisma.generatedImage.create({
+              data: {
+                imageUrl: img.url!,
+                prompt: validatedData.prompt,
+                category: validatedData.category,
+                style: validatedData.style,
+                colorTone: validatedData.colorTone || '',
+                aspectRatio: aspectRatio,
+                size: validatedData.size,
+                username: session.user.name ?? 'Anonymous',
+                userId: session.user.id,
+              },
             })
           )
       );
@@ -1785,9 +1762,8 @@ export async function generate8ImagesForVolnyn(
       );
     }
 
-    // Save to MongoDB with volnyn user reference
+    // Save to DB with volnyn user reference
     try {
-      await ensureDbConnected();
       const aspectRatio = targetWidth === targetHeight ? '1:1'
         : targetWidth > targetHeight ? `${(targetWidth / targetHeight).toFixed(1)}:1`
         : `1:${(targetHeight / targetWidth).toFixed(1)}`;
@@ -1795,16 +1771,18 @@ export async function generate8ImagesForVolnyn(
         localImages
           .filter((img) => img.success && img.url)
           .map((img) =>
-            GeneratedImage.create({
-              image_url: img.url,
-              prompt: validatedData.prompt,
-              category: validatedData.category,
-              style: validatedData.style,
-              color_tone: validatedData.colorTone || '',
-              aspect_ratio: aspectRatio,
-              size: validatedData.size,
-              username: `volnyn_user_${volnynUserId}`,
-              userId: `volnyn_${volnynUserId}`,
+            prisma.generatedImage.create({
+              data: {
+                imageUrl: img.url!,
+                prompt: validatedData.prompt,
+                category: validatedData.category,
+                style: validatedData.style,
+                colorTone: validatedData.colorTone || '',
+                aspectRatio: aspectRatio,
+                size: validatedData.size,
+                username: `volnyn_user_${volnynUserId}`,
+                userId: `volnyn_${volnynUserId}`,
+              },
             })
           )
       );
@@ -1823,25 +1801,28 @@ export async function generate8ImagesForVolnyn(
 }
 
 export async function checkImageHistory() {
-  const user = await currentUser();
+  const session = await auth();
 
-  if (!user) {
+  if (!session?.user?.id) {
     return null;
   }
 
   try {
-    await ensureDbConnected();
-    const userImages = await GeneratedImage.find({ userId: user.id }).sort({ createdAt: -1 }).limit(50);
+    const userImages = await prisma.generatedImage.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
 
-    return userImages.map((img: any) => ({
-      id: img._id.toString(),
-      _id: img._id.toString(),
-      image_url: img.image_url,
+    return userImages.map((img) => ({
+      id: img.id,
+      _id: img.id,
+      image_url: img.imageUrl,
       prompt: img.prompt,
       category: img.category,
       style: img.style,
-      color_tone: img.color_tone,
-      aspect_ratio: img.aspect_ratio,
+      color_tone: img.colorTone,
+      aspect_ratio: img.aspectRatio,
       size: img.size,
       username: img.username,
       userId: img.userId,

@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/landing/navbar";
@@ -184,7 +184,9 @@ export default function Home() {
     "standard"
   );
 
-  const { isSignedIn, isLoaded, user } = useUser();
+  const { data: session, status } = useSession();
+  const isSignedIn = status === "authenticated";
+  const isLoaded = status !== "loading";
   const { toast } = useToast();
 
   const [isDownloading, setIsDownloading] = useState(false);

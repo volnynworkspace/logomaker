@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?  @db.Text
+  googleId  String   @unique @map("google_id")
+  credits   Int      @default(10)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Logo {
+  id              String   @id @default(cuid())
+  imageUrl        String   @db.Text @map("image_url")
+  primaryColor    String   @map("primary_color")
+  backgroundColor String   @map("background_color")
+  username        String
+  userId          String   @map("user_id")
+  isEdited        Boolean  @default(false) @map("is_edited")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("logos")
+}
+
+model GeneratedImage {
+  id          String   @id @default(cuid())
+  imageUrl    String   @db.Text @map("image_url")
+  prompt      String   @db.Text
+  category    String
+  style       String
+  colorTone   String   @default("") @map("color_tone")
+  aspectRatio String   @default("1:1") @map("aspect_ratio")
+  size        String   @default("1024x1024")
+  username    String
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("generated_images")
+}

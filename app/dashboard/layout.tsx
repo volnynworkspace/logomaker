@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useMemo, Suspense } from "react";
 import { RefreshCw } from "lucide-react";
@@ -9,10 +9,13 @@ import DashboardTopbar from "@/components/dashboard/topbar";
 import { VolnynProvider } from "@/lib/volnyn-context";
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded } = useUser();
+  const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const isAuthenticated = status === "authenticated";
+  const isLoading = status === "loading";
 
   // Detect Volnyn session from URL params
   const isVolnynSession = useMemo(() => {
@@ -25,10 +28,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   }, [searchParams]);
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn && !isVolnynSession) {
+    if (!isLoading && !isAuthenticated && !isVolnynSession) {
       router.push("/");
     }
-  }, [isLoaded, isSignedIn, isVolnynSession, router]);
+  }, [isLoading, isAuthenticated, isVolnynSession, router]);
 
   useEffect(() => {
     if (sidebarOpen) {
@@ -41,7 +44,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     };
   }, [sidebarOpen]);
 
-  if (!isVolnynSession && !isLoaded) {
+  if (!isVolnynSession && isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -52,7 +55,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isVolnynSession && !isSignedIn) {
+  if (!isVolnynSession && !isAuthenticated) {
     return null;
   }
 

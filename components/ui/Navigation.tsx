@@ -1,14 +1,12 @@
 import { Button } from "./button";
 import Link from "next/link";
-import {
-  SignInButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-  useUser,
-} from "@clerk/nextjs";
+import { useSession, signIn } from "next-auth/react";
+import UserButton from "@/components/auth/user-button";
 
 const Navigation = () => {
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -40,22 +38,16 @@ const Navigation = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          <SignedOut>
-            <SignInButton
-              signUpForceRedirectUrl="/dashboard"
-              forceRedirectUrl="/dashboard"
+          {!isAuthenticated ? (
+            <Button
+              className="inline-flex text-white"
+              onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
             >
-              <Button className="inline-flex text-white">Sign In</Button>
-            </SignInButton>
-          </SignedOut>
-          <SignedIn>
+              Sign In
+            </Button>
+          ) : (
             <UserButton />
-            {/* <Link href="/generate">
-              <Button className="text-white">
-                Get Started
-              </Button> 
-            </Link> */}
-          </SignedIn>
+          )}
         </div>
       </div>
     </nav>
